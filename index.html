@@ -1,0 +1,285 @@
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Editor - Blue Background</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background: #f1f5f9;
+  color: #172033;
+}
+
+.container {
+  max-width: 520px;
+  margin: auto;
+  padding: 22px;
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 3px 15px #0001;
+}
+
+h2 { text-align: center; }
+
+label {
+  display: block;
+  margin: 15px 0 7px;
+  font-weight: bold;
+}
+
+input, select, button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 5px;
+  border-radius: 7px;
+  font-size: 16px;
+}
+
+button {
+  border: 0;
+  background: #0756b9;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:disabled {
+  background: #8795a8;
+  cursor: wait;
+}
+
+.preview {
+  text-align: center;
+  margin: 20px 0;
+}
+
+canvas {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #bbb;
+  background: #ddd;
+}
+
+.note {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #475569;
+}
+
+#status {
+  margin-top: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>ফটো এডিটিং টুল</h2>
+<p class="note">
+ছবি আপলোড করুন, ব্যাকগ্রাউন্ড নীল করুন এবং
+১.৬ × ১.৯ ইঞ্চি সাইজে ডাউনলোড করুন।
+</p>
+
+<label for="photo">১. ছবি নির্বাচন করুন</label>
+<input type="file" id="photo" accept="image/*">
+
+<label for="bgColor">২. ব্যাকগ্রাউন্ডের রং</label>
+<select id="bgColor">
+  <option value="#0000FF">নীল (Blue)</option>
+  <option value="#000080">গাঢ় নীল (Navy Blue)</option>
+  <option value="#FFFFFF">সাদা (White)</option>
+</select>
+
+<label for="fit">৩. ছবির অবস্থান</label>
+<select id="fit">
+  <option value="contain">পুরো ছবি দেখান</option>
+  <option value="cover">ফ্রেম পূর্ণ করুন</option>
+</select>
+
+<div class="preview">
+  <canvas id="canvas" width="480" height="570"></canvas>
+</div>
+
+<button id="removeBtn" disabled>
+  AI দিয়ে ব্যাকগ্রাউন্ড সরান
+</button>
+
+<button id="previewBtn">প্রিভিউ তৈরি করুন</button>
+
+<button id="downloadBtn">JPG ছবি ডাউনলোড</button>
+
+<p id="status" role="status">প্রথমে একটি ছবি নির্বাচন করুন।</p>
+
+<p class="note">
+প্রিন্ট সাইজ: ১.৬ × ১.৯ ইঞ্চি<br>
+রেজোলিউশন: 480 × 570 পিক্সেল, 300 DPI-এর লক্ষ্য অনুযায়ী।
+</p>
+
+</div>
+
+<script type="module">
+const photo = document.getElementById("photo");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const bgColor = document.getElementById("bgColor");
+const fit = document.getElementById("fit");
+const status = document.getElementById("status");
+const removeBtn = document.getElementById("removeBtn");
+const previewBtn = document.getElementById("previewBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+
+let originalFile = null;
+let currentImage = null;
+let busy = false;
+
+function drawImage() {
+  if (!currentImage) return;
+
+  const W = 480;
+  const H = 570;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = bgColor.value;
+  ctx.fillRect(0, 0, W, H);
+
+  const iw = currentImage.naturalWidth || currentImage.width;
+  const ih = currentImage.naturalHeight || currentImage.height;
+
+  const scale = fit.value === "cover"
+    ? Math.max(W / iw, H / ih)
+    : Math.min(W / iw, H / ih);
+
+  const w = iw * scale;
+  const h = ih * scale;
+
+  ctx.drawImage(
+    currentImage,
+    (W - w) / 2,
+    (H - h) / 2,
+    w,
+    h
+  );
+}
+
+function loadImage(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("ছবি খোলা যায়নি। অন্য ছবি চেষ্টা করুন।"));
+    };
+
+    img.src = url;
+  });
+}
+
+photo.addEventListener("change", async () => {
+  const file = photo.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith("image/")) {
+    status.textContent = "সঠিক ছবি নির্বাচন করুন।";
+    return;
+  }
+
+  try {
+    originalFile = file;
+    currentImage = await loadImage(file);
+    removeBtn.disabled = false;
+    drawImage();
+    status.textContent =
+      "ছবি লোড হয়েছে। নীল ব্যাকগ্রাউন্ড ও সাইজ পরীক্ষা করুন।";
+  } catch (err) {
+    status.textContent = err.message;
+  }
+});
+
+bgColor.addEventListener("change", drawImage);
+fit.addEventListener("change", drawImage);
+previewBtn.addEventListener("click", drawImage);
+
+removeBtn.addEventListener("click", async () => {
+  if (!originalFile || busy) return;
+
+  busy = true;
+  removeBtn.disabled = true;
+  status.textContent =
+    "AI মডেল লোড হচ্ছে। ইন্টারনেট ও প্রথমবার লোডের জন্য অপেক্ষা করুন...";
+
+  try {
+    const mod = await import(
+      "https://esm.sh/@imgly/background-removal@1.5.5"
+    );
+
+    status.textContent =
+      "ব্যাকগ্রাউন্ড সরানো হচ্ছে। ছবির আকার অনুযায়ী সময় লাগতে পারে...";
+
+    const blob = await mod.removeBackground(originalFile, {
+      output: { format: "image/png" }
+    });
+
+    currentImage = await loadImage(blob);
+    drawImage();
+
+    status.textContent =
+      "ব্যাকগ্রাউন্ড সরানো হয়েছে। নীল রং নির্বাচন করে ডাউনলোড করুন।";
+  } catch (err) {
+    console.error(err);
+    status.textContent =
+      "AI ব্যাকগ্রাউন্ড রিমুভ করা যায়নি। ইন্টারনেট, ব্রাউজার বা মডেল লোডের সমস্যা হতে পারে।";
+  } finally {
+    busy = false;
+    removeBtn.disabled = !originalFile;
+  }
+});
+
+downloadBtn.addEventListener("click", () => {
+  if (!currentImage) {
+    status.textContent = "আগে একটি ছবি নির্বাচন করুন।";
+    return;
+  }
+
+  drawImage();
+
+  canvas.toBlob(blob => {
+    if (!blob) {
+      status.textContent = "ছবি তৈরি করা যায়নি।";
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "photo-blue-1.6x1.9.jpg";
+    a.click();
+
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    status.textContent =
+      "ছবি ডাউনলোড শুরু হয়েছে।";
+  }, "image/jpeg", 0.95);
+});
+
+// প্রাথমিক নীল প্রিভিউ
+ctx.fillStyle = "#0000FF";
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+</script>
+</body>
+  </html>
+    
